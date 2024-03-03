@@ -45,8 +45,74 @@
       @idx
       A=M
       M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+      M=D
+      A=A+1
+
+      @32
+      D=A
       @idx
-      D=M+1
+      D=M+D
       M=D
 
       @end
