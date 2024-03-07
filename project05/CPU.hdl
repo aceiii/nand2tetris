@@ -27,10 +27,47 @@ CHIP CPU {
                          // the current program (reset==0).
 
     OUT outM[16],        // M value output
-        writeM,          // Write to M? 
+        writeM,          // Write to M?
         addressM[15],    // Address in data memory (of M)
         pc[15];          // address of next instruction
 
     PARTS:
-	//// Replace this comment with your code.
+
+    And(a=true, b=instruction[15], out=instrc);
+
+    Not(in=instrc, out=instra);
+    And(a=instruction[5], b=instrc, out=desta);
+    Or(a=instra, b=instruction[5], out=writea);
+
+    And(a=instruction[3], b=instrc, out=writeM);
+    And(a=instruction[4], b=instrc, out=writed);
+
+    Mux16(a=aluout, b=instruction, sel=instra, out=sela);
+    ARegister(in=sela, load=writea, out=rega, out[0..14]=addressM);
+
+    Mux16(a=rega, b=inM, sel=instruction[12], out=regmem);
+
+    ALU(x=regd, y=regmem, zx=instruction[11], nx=instruction[10], zy=instruction[9], ny=instruction[8], f=instruction[7], no=instruction[6], out=aluout, out=outM, zr=outzero, ng=outneg);
+
+    DRegister(in=aluout, load=writed, out=regd);
+
+    And(a=instruction[2], b=instruction[1], out=j12);
+    And(a=j12, b=instruction[0], out=j123);
+
+    Not(in=outzero, out=notzero);
+    Not(in=outneg, out=outpos);
+    And(a=notzero, b=outpos, out=gt);
+    And(a=notzero, b=outneg, out=lt);
+
+    And(a=lt, b=instruction[2], out=isjlt);
+    And(a=outzero, b=instruction[1], out=isjeq);
+    And(a=gt, b=instruction[0], out=isjgt);
+
+    Or8Way(in[0]=isjlt, in[1]=isjeq, in[2]=isjgt, out=iscond);
+    Or(a=iscond, b=j123, out=isjump);
+
+    And(a=instrc, b=isjump, out=isactualjump);
+    Not(in=isactualjump, out=isnext);
+
+    PC(in=rega, load=isactualjump, inc=isnext, reset=reset, out[0..14]=pc);
 }
