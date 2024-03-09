@@ -1,0 +1,3 @@
+[submodule "project06/assembler-cpp/thirdparty/spdlog"]
+	path = project06/assembler-cpp/thirdparty/spdlog
+	url = https://github.com/gabime/spdlog.git

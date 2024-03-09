@@ -9,3 +9,6 @@ indent_style = space
 [*.asm]
 indent_size = 2
 
+[*.{c,h,cpp,cpp}]
+indent_style = space
+indent_size = 4
