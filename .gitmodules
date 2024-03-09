@@ -1,3 +1,6 @@
 [submodule "project06/assembler-cpp/thirdparty/spdlog"]
 	path = project06/assembler-cpp/thirdparty/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "project06/assembler-cpp/thirdparty/argparse"]
+	path = project06/assembler-cpp/thirdparty/argparse
+	url = https://github.com/p-ranav/argparse.git
