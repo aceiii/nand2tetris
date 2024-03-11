@@ -8,6 +8,9 @@ set(CMAKE_CXX_STANDARD 17)
 
 file(GLOB_RECURSE SOURCE_FILES src/*.cpp)
 
+set(EXPECTED_BUILD_TESTS OFF)
+set(ARGPARSE_BUILD_TESTS OFF)
+
 add_subdirectory(thirdparty/spdlog)
 add_subdirectory(thirdparty/argparse)
 add_subdirectory(thirdparty/expected)
