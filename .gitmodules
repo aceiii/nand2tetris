@@ -4,3 +4,6 @@
 [submodule "project06/assembler-cpp/thirdparty/argparse"]
 	path = project06/assembler-cpp/thirdparty/argparse
 	url = https://github.com/p-ranav/argparse.git
+[submodule "project06/assembler-cpp/thirdparty/expected"]
+	path = project06/assembler-cpp/thirdparty/expected
+	url = https://github.com/TartanLlama/expected.git
