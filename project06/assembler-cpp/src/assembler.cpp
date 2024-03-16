@@ -110,6 +110,10 @@ tl::expected<instr_line, std::string> parse_instruction_line(std::string line) {
         return instr_empty {};
     }
 
+    if (line[0] == '@') {
+        return instr_a { line.substr(1) };
+    }
+
     return tl::unexpected("Not yet implemented!");
 };
 
