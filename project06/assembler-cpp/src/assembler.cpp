@@ -18,14 +18,14 @@ struct instr_a {
 
 struct instr_c {
     std::string dest;
-    std::string src;
-    std::string op;
+    std::string comp;
+    std::string jump;
 };
 
 using instr_line = std::variant<instr_empty, instr_label, instr_a, instr_c>;
 
 tl::expected<instr_line, std::string> parse_instruction_line(std::string line);
-uint8_t assemble_instruction_line(const instr_line& instr, std::map<std::string, uint16_t>& symbol_map, uint16_t& next_register);
+tl::expected<uint8_t, std::string> assemble_instruction_line(const instr_line& instr, std::map<std::string, uint16_t>& symbol_map, uint16_t& next_register);
 
 std::string trim_whitespace(const std::string& str) {
     const std::string whitespace = " \t";
@@ -94,7 +94,12 @@ tl::expected<bytes, std::string> Assembler::parse() {
     uint16_t next_register = 16;
 
     for (const auto& instr: instructions) {
-        buffer.push_back(assemble_instruction_line(instr, symbol_map, next_register));
+        auto result = assemble_instruction_line(instr, symbol_map, next_register);
+        if (!result.has_value()) {
+            return tl::unexpected(result.error());
+        }
+
+        buffer.push_back(result.value());
     }
 
     spdlog::info("Generated {} bytes of hack", buffer.size());
@@ -114,9 +119,29 @@ tl::expected<instr_line, std::string> parse_instruction_line(std::string line) {
         return instr_a { line.substr(1) };
     }
 
-    return tl::unexpected("Not yet implemented!");
+    std::string dest;
+    std::string comp;
+    std::string jump;
+
+    auto eq_pos = line.find_first_of("=");
+    auto semi_pos = line.find_last_of(";");
+
+    if (eq_pos == std::string::npos && semi_pos == std::string::npos) {
+        comp = line;
+    } else if (eq_pos == std::string::npos) {
+        comp = line.substr(0, semi_pos);
+        jump = line.substr(semi_pos + 1);
+    } else if (semi_pos == std::string::npos) {
+        dest = line.substr(0, eq_pos);
+        comp = line.substr(eq_pos + 1);
+    } else {
+        dest = line.substr(0, eq_pos);
+        comp = line.substr(eq_pos + 1, semi_pos);
+        jump = line.substr(semi_pos + 1);
+    }
+    return instr_c { dest, comp, jump };
 };
 
-uint8_t assemble_instruction_line(const instr_line& instr, std::map<std::string, uint16_t>& symbol_map, uint16_t& next_register) {
-    return 0;
+tl::expected<uint8_t, std::string> assemble_instruction_line(const instr_line& instr, std::map<std::string, uint16_t>& symbol_map, uint16_t& next_register) {
+    return tl::unexpected("Not yet implemented");
 }
