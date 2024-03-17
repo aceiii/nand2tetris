@@ -64,7 +64,7 @@ int main(int argc, char* argv[]) {
     std::string output = program.get("--output");
 
     if (output.empty()) {
-        output = replace_ext(filename, "hack");
+        output = replace_ext(std::filesystem::path(filename).filename(), "hack");
     }
 
     spdlog::info("Reading file: {}", filename);
