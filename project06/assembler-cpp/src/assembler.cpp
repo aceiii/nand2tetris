@@ -1,9 +1,11 @@
 #include "assembler.h"
 
 #include <spdlog/spdlog.h>
+#include <algorithm>
 #include <map>
 #include <regex>
 #include <sstream>
+#include <string>
 #include <variant>
 #include <vector>
 
@@ -53,6 +55,15 @@ std::string trim_comments(const std::string& str) {
     return str.substr(0, pos);
 }
 
+std::string remove_whitespace(const std::string& str) {
+    std::string out = str;
+    auto pos = std::remove_if(out.begin(), out.end(), [] (const auto& c) {
+        return c == ' ' || c == '\t' || c == '\r';
+    });
+    out.erase(pos, out.end());
+    return out;
+}
+
 Assembler::Assembler(const std::string& code) : code(code) {}
 
 tl::expected<buffer, std::string> Assembler::parse() {
@@ -94,14 +105,6 @@ tl::expected<buffer, std::string> Assembler::parse() {
             [&] (const instr_a& a) { instructions.push_back(a); },
             [&] (const instr_c& c) { instructions.push_back(c); },
         }, instr);
-
-        // if (std::holds_alternative<instr_empty>(instr)) {
-        //     continue;
-        // } else if (std::holds_alternative<instr_label>(instr)) {
-        //     symbol_map[std::get<instr_label>(instr).label] = instructions.size();
-        //     continue;
-        // }
-        // instructions.emplace_back(instr);
     }
 
     buffer buf;
@@ -134,6 +137,15 @@ tl::expected<instr_line, std::string> parse_instruction_line(std::string line) {
         return instr_a { line.substr(1) };
     }
 
+    if (line[0] == '(') {
+        if (line.back() != ')') {
+            return tl::unexpected(fmt::format("Unexpected instruction: {}", line));
+        }
+
+        std::string label = line.substr(1, line.size() - 2);
+        return instr_label { label };
+    }
+
     std::string dest, comp, jump;
     auto eq_pos = line.find_first_of("=");
     auto semi_pos = line.find_last_of(";");
@@ -154,6 +166,68 @@ tl::expected<instr_line, std::string> parse_instruction_line(std::string line) {
     return instr_c { dest, comp, jump };
 };
 
+
+static std::map<std::string, uint16_t> dest_map = {
+    { "",    0b000 },
+    { "M",   0b001 },
+    { "D",   0b010 },
+    { "DM",  0b011 },
+    { "MD",  0b011 },
+    { "A",   0b100 },
+    { "AM",  0b101 },
+    { "MA",  0b101 },
+    { "AD",  0b110 },
+    { "DA",  0b110 },
+    { "ADM", 0b111 },
+    { "AMD", 0b111 },
+    { "DAM", 0b111 },
+    { "DMA", 0b111 },
+    { "MAD", 0b111 },
+    { "MDA", 0b111 },
+};
+
+static std::map<std::string, uint16_t> comp_map = {
+    { "0",    0b0101010 },
+    { "1",    0b0111111 },
+    { "-1",   0b0111010 },
+    { "D",    0b0001100 },
+    { "A",    0b0110000 },
+    { "M",    0b1110000 },
+    { "!D",   0b0001101 },
+    { "!A",   0b0110001 },
+    { "!M",   0b1110001 },
+    { "-D",   0b0001111 },
+    { "-A",   0b0110011 },
+    { "-M",   0b1110011 },
+    { "D+1",  0b0011111 },
+    { "A+1",  0b0110111 },
+    { "M+1",  0b1110111 },
+    { "D-1",  0b0001110 },
+    { "A-1",  0b0110010 },
+    { "M-1",  0b1110010 },
+    { "D+A",  0b0000010 },
+    { "D+M",  0b1000010 },
+    { "D-A",  0b0010011 },
+    { "D-M",  0b1010011 },
+    { "A-D",  0b0000111 },
+    { "M-D",  0b1000111 },
+    { "D&A",  0b0000000 },
+    { "D&M",  0b1000000 },
+    { "D|A",  0b0010101 },
+    { "D|M",  0b1010101 },
+};
+
+static std::map<std::string, uint16_t> jump_map = {
+    { "",    0b000 },
+    { "JGT", 0b001 },
+    { "JEQ", 0b010 },
+    { "JGE", 0b011 },
+    { "JLT", 0b100 },
+    { "JNE", 0b101 },
+    { "JLE", 0b110 },
+    { "JMP", 0b111 },
+};
+
 tl::expected<uint16_t, std::string> assemble_instruction_line(const instruction& instr, std::map<std::string, uint16_t>& symbol_map, uint16_t& next_register) {
     if (std::holds_alternative<instr_a>(instr)) {
         const auto& a = std::get<instr_a>(instr);
@@ -161,12 +235,9 @@ tl::expected<uint16_t, std::string> assemble_instruction_line(const instruction&
 
         if (isdigit(a.value[0])) {
             int value = stoi(a.value);
-            spdlog::debug("constant value: {}", value);
-
             if (value > 32767) {
                 return tl::unexpected(fmt::format("A-instruction constant value '{}' exceeds maximum 32767", value));
             }
-
             return value;
         }
 
@@ -180,8 +251,32 @@ tl::expected<uint16_t, std::string> assemble_instruction_line(const instruction&
         return found->second;
     } else {
         const auto& c = std::get<instr_c>(instr);
-        spdlog::trace("C-instr: [{}, {}, {}]", c.dest, c.comp, c.jump);
+        std::string dest = remove_whitespace(c.dest);
+        std::string comp = remove_whitespace(c.comp);
+        std::string jump = remove_whitespace(c.jump);
 
-        return 1;
+        spdlog::trace("C-instr: [{}, {}, {}]", dest, comp, jump);
+
+        uint16_t jbits, dbits, cbits;
+
+        try {
+            cbits = comp_map.at(comp);
+        } catch (const std::exception&) {
+            return tl::unexpected(fmt::format("Invalid COMP: {}", comp));
+        }
+
+        try {
+            dbits = dest_map.at(dest);
+        } catch (const std::exception&) {
+            return tl::unexpected(fmt::format("Invalid DEST: {}", dest));
+        }
+
+        try {
+            jbits = jump_map.at(jump);
+        } catch (const std::exception&) {
+            return tl::unexpected(fmt::format("Invalid JUMP: {}", jump));
+        }
+
+        return jbits | (dbits << 3) | (cbits << 6) | (0b111 << 13);
     }
 }
