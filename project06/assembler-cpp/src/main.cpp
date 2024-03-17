@@ -6,11 +6,13 @@
 
 #include "assembler.h"
 
-tl::expected<bool, std::string> write_asm_to_file(const std::string& filename, const bytes& buffer) {
-    std::ofstream out(filename, std::ios::out | std::ios::binary);
+tl::expected<bool, std::string> write_asm_to_file(const std::string& filename, const buffer& buf) {
+    std::ofstream out(filename, std::ios::out);
     if (out) {
-        for (const auto &byte : buffer) {
-            out.write((char*)&byte, sizeof(byte));
+        for (const auto &byte : buf) {
+            // out.write((char*)&byte, sizeof(byte));
+            std::string line = fmt::format("{:016b}\n", byte);
+            out.write(line.c_str(), line.size());
         }
         out.close();
         return true;

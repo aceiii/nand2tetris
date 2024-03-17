@@ -4,13 +4,13 @@
 #include <vector>
 #include <tl/expected.hpp>
 
-typedef std::vector<uint8_t> bytes;
+using buffer = std::vector<uint16_t>;
 
 class Assembler {
 public:
     Assembler(const std::string& code);
 
-    tl::expected<bytes, std::string> parse();
+    tl::expected<buffer, std::string> parse();
 
 private:
     std::string code;

@@ -1,10 +1,17 @@
 #include "assembler.h"
 
 #include <spdlog/spdlog.h>
-#include <sstream>
-#include <vector>
 #include <map>
 #include <regex>
+#include <sstream>
+#include <variant>
+#include <vector>
+
+template <class... Ts>
+struct overloaded : Ts... { using Ts::operator()...; };
+
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
 
 struct instr_empty {};
 
@@ -23,12 +30,13 @@ struct instr_c {
 };
 
 using instr_line = std::variant<instr_empty, instr_label, instr_a, instr_c>;
+using instruction = std::variant<instr_a, instr_c>;
 
 tl::expected<instr_line, std::string> parse_instruction_line(std::string line);
-tl::expected<uint8_t, std::string> assemble_instruction_line(const instr_line& instr, std::map<std::string, uint16_t>& symbol_map, uint16_t& next_register);
+tl::expected<uint16_t, std::string> assemble_instruction_line(const instruction& instr, std::map<std::string, uint16_t>& symbol_map, uint16_t& next_register);
 
 std::string trim_whitespace(const std::string& str) {
-    const std::string whitespace = " \t";
+    const std::string whitespace = " \t\r";
     const auto begin = str.find_first_not_of(whitespace);
     if (begin == std::string::npos) {
         return "";
@@ -47,11 +55,11 @@ std::string trim_comments(const std::string& str) {
 
 Assembler::Assembler(const std::string& code) : code(code) {}
 
-tl::expected<bytes, std::string> Assembler::parse() {
+tl::expected<buffer, std::string> Assembler::parse() {
     std::stringstream ss(code);
     std::string line;
 
-    std::vector<instr_line> instructions;
+    std::vector<instruction> instructions;
     std::map<std::string, uint16_t> symbol_map = {
         { "R0", 0 },
         { "R1", 1 },
@@ -73,24 +81,31 @@ tl::expected<bytes, std::string> Assembler::parse() {
         { "KBD", 24576 },
     };
 
-    while (std::getline(ss, line, '\n')) {
+    while (std::getline(ss, line)) {
         auto result = parse_instruction_line(line);
         if (!result.has_value()) {
             return tl::unexpected(result.error());
         }
 
         auto instr = result.value();
-        if (std::holds_alternative<instr_empty>(instr)) {
-            continue;
-        } else if (std::holds_alternative<instr_label>(instr)) {
-            symbol_map[std::get<instr_label>(instr).label] = instructions.size();
-            continue;
-        }
-        instructions.push_back(instr);
+        std::visit(overloaded {
+            [] (const instr_empty&) {},
+            [&] (const instr_label& instr) { symbol_map[instr.label] = instructions.size(); },
+            [&] (const instr_a& a) { instructions.push_back(a); },
+            [&] (const instr_c& c) { instructions.push_back(c); },
+        }, instr);
+
+        // if (std::holds_alternative<instr_empty>(instr)) {
+        //     continue;
+        // } else if (std::holds_alternative<instr_label>(instr)) {
+        //     symbol_map[std::get<instr_label>(instr).label] = instructions.size();
+        //     continue;
+        // }
+        // instructions.emplace_back(instr);
     }
 
-    bytes buffer;
-    buffer.reserve(1024);
+    buffer buf;
+    buf.reserve(1024);
     uint16_t next_register = 16;
 
     for (const auto& instr: instructions) {
@@ -99,16 +114,16 @@ tl::expected<bytes, std::string> Assembler::parse() {
             return tl::unexpected(result.error());
         }
 
-        buffer.push_back(result.value());
+        buf.push_back(result.value());
     }
 
-    spdlog::info("Generated {} bytes of hack", buffer.size());
+    spdlog::info("Generated {} bytes of hack", buf.size());
 
-    return buffer;
+    return buf;
 }
 
 tl::expected<instr_line, std::string> parse_instruction_line(std::string line) {
-    spdlog::trace(">>>  {}", line);
+    spdlog::trace(">>> {}", line);
 
     line = trim_whitespace(trim_comments(line));
     if (line.empty()) {
@@ -119,10 +134,7 @@ tl::expected<instr_line, std::string> parse_instruction_line(std::string line) {
         return instr_a { line.substr(1) };
     }
 
-    std::string dest;
-    std::string comp;
-    std::string jump;
-
+    std::string dest, comp, jump;
     auto eq_pos = line.find_first_of("=");
     auto semi_pos = line.find_last_of(";");
 
@@ -142,6 +154,34 @@ tl::expected<instr_line, std::string> parse_instruction_line(std::string line) {
     return instr_c { dest, comp, jump };
 };
 
-tl::expected<uint8_t, std::string> assemble_instruction_line(const instr_line& instr, std::map<std::string, uint16_t>& symbol_map, uint16_t& next_register) {
-    return tl::unexpected("Not yet implemented");
+tl::expected<uint16_t, std::string> assemble_instruction_line(const instruction& instr, std::map<std::string, uint16_t>& symbol_map, uint16_t& next_register) {
+    if (std::holds_alternative<instr_a>(instr)) {
+        const auto& a = std::get<instr_a>(instr);
+        spdlog::trace("A-instr: {}", a.value);
+
+        if (isdigit(a.value[0])) {
+            int value = stoi(a.value);
+            spdlog::debug("constant value: {}", value);
+
+            if (value > 32767) {
+                return tl::unexpected(fmt::format("A-instruction constant value '{}' exceeds maximum 32767", value));
+            }
+
+            return value;
+        }
+
+        auto found = symbol_map.find(a.value);
+        if (found == symbol_map.end()) {
+            uint16_t register_value = next_register++;
+            symbol_map[a.value] = register_value;
+            return register_value;
+        }
+
+        return found->second;
+    } else {
+        const auto& c = std::get<instr_c>(instr);
+        spdlog::trace("C-instr: [{}, {}, {}]", c.dest, c.comp, c.jump);
+
+        return 1;
+    }
 }
