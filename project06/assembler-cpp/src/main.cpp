@@ -6,13 +6,22 @@
 
 #include "assembler.h"
 
-tl::expected<bool, std::string> write_asm_to_file(const std::string& filename, const buffer& buf) {
-    std::ofstream out(filename, std::ios::out);
+tl::expected<bool, std::string> write_asm_to_file(const std::string& filename, const buffer& buf, bool binary) {
+    auto flags = std::ios::out;
+    if (binary) {
+        flags |= std::ios::binary;
+    }
+    std::ofstream out(filename, flags);
     if (out) {
-        for (const auto &byte : buf) {
-            // out.write((char*)&byte, sizeof(byte));
-            std::string line = fmt::format("{:016b}\n", byte);
-            out.write(line.c_str(), line.size());
+        if (binary) {
+            for (const auto &byte : buf) {
+                out.write(reinterpret_cast<const char*>(&byte), sizeof(byte));
+            }
+        } else {
+            for (const auto &byte : buf) {
+                std::string line = fmt::format("{:016b}\n", byte);
+                out.write(line.c_str(), line.size());
+            }
         }
         out.close();
         return true;
@@ -75,7 +84,13 @@ int main(int argc, char* argv[]) {
         .help("Set verbosity for logging")
         // .choices("trace", "debug", "info", "warn", "err", "critical", "off")
         .default_value(std::string("info"))
-        .metavar("LEVEL");
+        .metavar("LEVEL")
+        .nargs(1);
+
+    program.add_argument("-b", "--binary")
+        .help("Output to binary file")
+        .default_value(false)
+        .implicit_value(true);
 
     program.add_argument("filename")
         .help("File to assemble.")
@@ -120,7 +135,8 @@ int main(int argc, char* argv[]) {
     }
 
     spdlog::info("Writing to file: {}", output);
-    if (auto write_result = write_asm_to_file(output, result.value()); !write_result.has_value()) {
+    bool write_binary = program.get<bool>("--binary");
+    if (auto write_result = write_asm_to_file(output, result.value(), write_binary); !write_result.has_value()) {
         spdlog::error("Failed to write to file: {}", write_result.error());
     }
 
