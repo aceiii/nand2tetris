@@ -40,24 +40,59 @@ std::string replace_ext(const std::string& filename, const std::string& ext) {
     return filename.substr(0, dot_index) + "." + ext;
 }
 
+tl::expected<void, std::string> set_logging_level(const std::string& level) {
+    if (level == "trace") {
+        spdlog::set_level(spdlog::level::trace);
+    } else if (level == "debug") {
+        spdlog::set_level(spdlog::level::debug);
+    } else if (level == "info") {
+        spdlog::set_level(spdlog::level::info);
+    } else if (level == "warn") {
+        spdlog::set_level(spdlog::level::warn);
+    } else if (level == "err") {
+        spdlog::set_level(spdlog::level::err);
+    } else if (level == "critical") {
+        spdlog::set_level(spdlog::level::critical);
+    } else if (level == "off") {
+        spdlog::set_level(spdlog::level::off);
+    } else {
+        return tl::unexpected(fmt::format("Invalid argument \"{}\" - allowed options: {{trace, debug, info, warn, err, critical, off}}", level));
+    }
+    return {};
+}
+
 int main(int argc, char* argv[]) {
-    spdlog::set_level(spdlog::level::trace);
+    spdlog::set_level(spdlog::level::info);
 
     argparse::ArgumentParser program("assembler-cpp", "0.0.1");
-
-    program.add_argument("filename")
-        .help("File to assemble.")
-        .metavar("FILENAME");
 
     program.add_argument("-o", "--output")
         .help("File to output")
         .metavar("OUTPUT")
         .default_value("");
 
+    program.add_argument("-l", "--log-level")
+        .help("Set verbosity for logging")
+        // .choices("trace", "debug", "info", "warn", "err", "critical", "off")
+        .default_value(std::string("info"))
+        .metavar("LEVEL");
+
+    program.add_argument("filename")
+        .help("File to assemble.")
+        .metavar("FILENAME")
+        .nargs(1);
+
     try {
         program.parse_args(argc, argv);
     } catch(const std::exception& err) {
         std::cerr << err.what() << std::endl;
+        std::cerr << program;
+        return 1;
+    }
+
+    const std::string level = program.get("--log-level");
+    if (auto result = set_logging_level(level); !result.has_value()) {
+        std::cerr << result.error() << std::endl;
         std::cerr << program;
         return 1;
     }
