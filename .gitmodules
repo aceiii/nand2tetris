@@ -7,3 +7,12 @@
 [submodule "project06/assembler-cpp/thirdparty/expected"]
 	path = project06/assembler-cpp/thirdparty/expected
 	url = https://github.com/TartanLlama/expected.git
+[submodule "project07/vm-translator-cpp/thirdparty/argparse"]
+	path = project07/vm-translator-cpp/thirdparty/argparse
+	url = https://github.com/p-ranav/argparse.git
+[submodule "project07/vm-translator-cpp/thirdparty/spdlog"]
+	path = project07/vm-translator-cpp/thirdparty/spdlog
+	url = https://github.com/gabime/spdlog.git
+[submodule "project07/vm-translator-cpp/thirdparty/expected"]
+	path = project07/vm-translator-cpp/thirdparty/expected
+	url = https://github.com/TartanLlama/expected.git
