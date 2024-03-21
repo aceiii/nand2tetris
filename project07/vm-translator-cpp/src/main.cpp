@@ -5,16 +5,27 @@
 #include <fstream>
 #include <filesystem>
 
-tl::expected<std::string, std::string> get_file_contents(const std::string& filename) {
-    std::ifstream in(filename, std::ios::in | std::ios::binary);
-    if (in)
-    {
-        std::ostringstream contents;
-        contents << in.rdbuf();
-        in.close();
-        return(contents.str());
+#include "vmtranslator.h"
+
+tl::expected<std::string, std::string> get_file_contents(const std::istream& in) {
+    if (!in) {
+        return tl::unexpected(std::strerror(errno));
     }
-    return tl::unexpected(std::strerror(errno));
+
+    std::ostringstream contents;
+    contents << in.rdbuf();
+    return contents.str();
+}
+
+tl::expected<bool, std::string> write_file_contents(std::ostream& out, const std::vector<std::string>& lines) {
+    if (!out) {
+        return tl::unexpected(std::strerror(errno));
+    }
+    for (const auto &line : lines) {
+        out.write(line.c_str(), line.size());
+        out.write("\n", 1);
+    }
+    return true;
 }
 
 std::string replace_ext(const std::string& filename, const std::string& ext) {
@@ -115,6 +126,46 @@ auto main(int argc, char* argv[]) -> int {
         output = replace_ext(std::filesystem::path(filename).filename(), "asm");
     } else {
         output = "out.asm";
+    }
+
+    const auto contents = ([&] () {
+        if (read_from_stdin) {
+            spdlog::info("Reading from STDIN");
+            return get_file_contents(std::cin);
+        }
+
+        spdlog::info("Reading file: {}", filename);
+        std::ifstream file(filename, std::ios::in);
+        return get_file_contents(file);
+    })();
+
+    if (!contents.has_value()) {
+        spdlog::error("Failed to load file: {}", contents.error());
+        return 1;
+    }
+
+    VMTranslator translator(contents.value());
+    auto result = translator.translate();
+    if (!result.has_value()) {
+        spdlog::error("Translation failed: {}", result.error());
+        return 1;
+    }
+
+    auto write_result = ([&] () {
+        if (write_to_stdout) {
+            spdlog::info("Writing to STDOUT");
+            return write_file_contents(std::cout, result.value());
+        }
+
+        spdlog::info("Writing to file: {}", output);
+
+        std::fstream file(output, std::ios::out);
+        return write_file_contents(file, result.value());
+    })();
+
+    if (!write_result.has_value()) {
+        spdlog::error("Failed to write to file: {}", write_result.error());
+        return 1;
     }
 
     return 0;
