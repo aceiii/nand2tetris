@@ -67,6 +67,7 @@ tl::expected<void, std::string> set_logging_level(const std::string& level) {
 int main(int argc, char* argv[]) {
     auto logger = spdlog::stderr_color_mt("stderr");
     spdlog::set_default_logger(logger);
+    spdlog::set_level(spdlog::level::info);
 
     argparse::ArgumentParser program("assembler-cpp", "0.0.1");
 
@@ -162,8 +163,6 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-
-
     auto write_result = ([&] () {
         bool write_binary = program.get<bool>("--binary");
 
@@ -186,6 +185,7 @@ int main(int argc, char* argv[]) {
 
     if (!write_result.has_value()) {
         spdlog::error("Failed to write to file: {}", write_result.error());
+        return 1;
     }
 
     return 0;
