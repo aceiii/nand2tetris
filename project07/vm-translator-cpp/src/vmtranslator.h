@@ -11,5 +11,5 @@ public:
     tl::expected<std::vector<std::string>, std::string> translate();
 
 private:
-    std::string code;
+    std::vector<std::string> lines;
 };
