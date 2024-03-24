@@ -9,6 +9,54 @@ struct overloaded : Ts... { using Ts::operator()...; };
 template <class... Ts>
 overloaded(Ts...) -> overloaded<Ts...>;
 
+enum arithmetic_op {
+    kArithmeticOpAdd,
+};
+
+enum segment_pointer {
+    kSegmentLocal,
+    kSegmentAtgument,
+    kSegmentThis,
+    kSsgmentThat,
+};
+
+struct cmd_arithmetic {
+    arithmetic_op op;
+};
+
+struct cmd_push {
+    segment_pointer seg;
+    uint16_t val;
+};
+
+struct cmd_pop {
+    segment_pointer seg;
+};
+
+struct cmd_label {
+    std::string label;
+};
+
+struct cmd_goto {
+    std::string label;
+};
+
+struct cmd_if {
+};
+
+struct cmd_function {
+};
+
+struct cmd_return {
+};
+
+struct cmd_call {
+};
+
+using vm_instruction = std::variant<cmd_arithmetic, cmd_push, cmd_pop, cmd_label, cmd_goto, cmd_if, cmd_function, cmd_return, cmd_call>;
+
+tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line);
+
 std::string trim_whitespace(const std::string& str) {
     const std::string whitespace = " \t\r";
     const auto begin = str.find_first_not_of(whitespace);
@@ -50,9 +98,20 @@ VMTranslator::VMTranslator(const std::string& code) {
 }
 
 tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
+    std::vector<vm_instruction> instructions;
+    
     for (const auto &line : lines) {
         spdlog::trace(">>> {}", line);
+        auto result = parse_vm_line(line);
+        if (!result.has_value()) {
+            return tl::unexpected(result.error());
+        }
+        instructions.push_back(result.value());
     }
 
     return tl::unexpected("Not Implemented!");
+}
+
+tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line) {
+    return tl::unexpected("Not Implemented");
 }
