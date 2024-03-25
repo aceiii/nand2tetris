@@ -69,6 +69,7 @@ struct cmd_call {
 using vm_instruction = std::variant<cmd_arithmetic, cmd_push, cmd_pop, cmd_label, cmd_goto, cmd_if, cmd_function, cmd_return, cmd_call>;
 
 tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line);
+tl::expected<void, std::string> build_asm(const std::vector<vm_instruction>& instructions, std::vector<std::string>* out_lines);
 
 std::string trim_whitespace(const std::string& str) {
     const std::string whitespace = " \t\r";
@@ -138,7 +139,15 @@ tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
         instructions.push_back(result.value());
     }
 
-    return tl::unexpected("Not Implemented!");
+    std::vector<std::string> asm_lines;
+    asm_lines.reserve(1024);
+
+    auto result = build_asm(instructions, &asm_lines);
+    if (!result.has_value()) {
+        return tl::unexpected(result.error());
+    }
+
+    return asm_lines;
 }
 
 tl::expected<segment_pointer, std::string> parse_segment_pointer(const std::string& segment) {
@@ -253,4 +262,28 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line)
     }
 
     return tl::unexpected(fmt::format("Unknown command: {}", line));
+}
+
+tl::expected<void, std::string> build_asm(const std::vector<vm_instruction>& instructions, std::vector<std::string>* out_lines) {
+    for (const auto& instr : instructions) {
+        auto res = std::visit(overloaded {
+            [&] (const cmd_arithmetic&) -> tl::expected<void, std::string> {
+                return {};
+            },
+            [&] (const cmd_push& cmd) ->tl::expected<void, std::string> {
+                return {};
+            },
+            [&] (const cmd_pop& cmd) -> tl::expected<void, std::string> {
+                return {};
+            },
+            [] (auto&&) -> tl::expected<void, std::string> {
+                return tl::unexpected("Not yet implemented");
+            },
+        }, instr);
+
+        if (!res.has_value()) {
+            return tl::unexpected(res.error());
+        }
+    }
+    return {};
 }
