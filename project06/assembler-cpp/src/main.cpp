@@ -25,7 +25,6 @@ tl::expected<bool, std::string> write_asm_to_file(std::ostream& out, const buffe
 }
 
 tl::expected<std::string, std::string> get_file_contents(std::istream& in) {
-    // std::ifstream in(filename, std::ios::in);
     if (!in) {
         return tl::unexpected(std::strerror(errno));
     }
@@ -121,7 +120,7 @@ int main(int argc, char* argv[]) {
         return args_error(result.error());
     }
 
-    std::string filename = program.get("filename");
+    std::filesystem::path filepath(program.get("filename"));
     std::string output = program.get("--output");
     bool read_from_stdin = program.get<bool>("--stdin");
     bool write_to_stdout = program.get<bool>("--stdout");
@@ -130,12 +129,17 @@ int main(int argc, char* argv[]) {
         return args_error("May only use ONE OF --stdin or --output");
     }
 
-    if ((read_from_stdin && !filename.empty()) || (filename.empty() && !read_from_stdin)) {
+    if ((read_from_stdin && !filepath.empty()) || (filepath.empty() && !read_from_stdin)) {
         return args_error("Must read from ONE of FILENAME or --stdin");
     }
 
+    if (!read_from_stdin && std::filesystem::is_directory(filepath)) {
+        spdlog::error("{} is a directory", filepath.string());
+        return 1;
+    }
+
     if (output.empty() && !read_from_stdin) {
-        output = replace_ext(std::filesystem::path(filename).filename(), "hack");
+        output = replace_ext(filepath.filename(), "hack");
     } else {
         output = "out.hack";
     }
@@ -146,6 +150,7 @@ int main(int argc, char* argv[]) {
             return get_file_contents(std::cin);
         }
 
+        const std::string filename = filepath;
         spdlog::info("Reading file: {}", filename);
         std::ifstream file(filename, std::ios::in);
         return get_file_contents(file);
