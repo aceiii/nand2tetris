@@ -11,13 +11,25 @@ overloaded(Ts...) -> overloaded<Ts...>;
 
 enum arithmetic_op {
     kArithmeticOpAdd,
+    kArithmeticOpSub,
+    kArithmeticOpNeg,
+    kArithmeticOpEq,
+    kArithmeticOpGt,
+    kArithmeticOpLt,
+    kArithmeticOpAnd,
+    kArithmeticOpOr,
+    kArithmeticOpNot,
 };
 
 enum segment_pointer {
     kSegmentLocal,
-    kSegmentAtgument,
+    kSegmentArgument,
+    kSegmentStatic,
+    kSegmentConstant,
     kSegmentThis,
-    kSsgmentThat,
+    kSegmentThat,
+    kSegmentPointer,
+    kSegmentTemp,
 };
 
 struct cmd_arithmetic {
@@ -99,7 +111,7 @@ VMTranslator::VMTranslator(const std::string& code) {
 
 tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
     std::vector<vm_instruction> instructions;
-    
+
     for (const auto &line : lines) {
         spdlog::trace(">>> {}", line);
         auto result = parse_vm_line(line);
@@ -113,5 +125,49 @@ tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
 }
 
 tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line) {
+    std::vector<std::string> tokens;
+    std::stringstream ss(line);
+    std::string token;
+
+    while (getline(ss, token, ' ')) {
+        token = trim_whitespace(token);
+        if (token.empty()) {
+            continue;
+        }
+        tokens.push_back(token);
+    }
+
+    if (tokens.size() == 1) {
+        token = tokens[0];
+        if (token == "add") {
+            return cmd_arithmetic { kArithmeticOpAdd };
+        }
+        if (token == "sub") {
+            return cmd_arithmetic { kArithmeticOpSub };
+        }
+        if (token == "neg") {
+            return cmd_arithmetic { kArithmeticOpNeg };
+        }
+        if (token == "eq") {
+            return cmd_arithmetic { kArithmeticOpEq };
+        }
+        if (token == "gt") {
+            return cmd_arithmetic { kArithmeticOpGt };
+        }
+        if (token == "lt") {
+            return cmd_arithmetic { kArithmeticOpLt };
+        }
+        if (token == "and") {
+            return cmd_arithmetic { kArithmeticOpAnd };
+        }
+        if (token == "or") {
+            return cmd_arithmetic { kArithmeticOpOr };
+        }
+        if (token == "not") {
+            return cmd_arithmetic { kArithmeticOpNot };
+        }
+        return tl::unexpected(fmt::format("Unknown command: {}", line));
+    }
+
     return tl::unexpected("Not Implemented");
 }
