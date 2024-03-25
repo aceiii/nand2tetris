@@ -38,11 +38,12 @@ struct cmd_arithmetic {
 
 struct cmd_push {
     segment_pointer seg;
-    uint16_t val;
+    uint16_t offset;
 };
 
 struct cmd_pop {
     segment_pointer seg;
+    uint16_t offset;
 };
 
 struct cmd_label {
@@ -137,8 +138,12 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line)
         tokens.push_back(token);
     }
 
+    if (tokens.empty()) {
+        return tl::unexpected("Unexpected empty instruction line");
+    }
+
+    token = tokens[0];
     if (tokens.size() == 1) {
-        token = tokens[0];
         if (token == "add") {
             return cmd_arithmetic { kArithmeticOpAdd };
         }
@@ -166,8 +171,84 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line)
         if (token == "not") {
             return cmd_arithmetic { kArithmeticOpNot };
         }
-        return tl::unexpected(fmt::format("Unknown command: {}", line));
     }
 
-    return tl::unexpected("Not Implemented");
+    if (token == "push" && tokens.size() == 3) {
+        const std::string& segment = tokens[1];
+        const std::string& num = tokens[2];
+
+        segment_pointer seg;
+
+        if (segment == "local") {
+            seg = kSegmentLocal;
+        } else if (segment == "argument") {
+            seg = kSegmentArgument;
+        } else if (segment == "this") {
+            seg = kSegmentThis;
+        } else if (segment == "that") {
+            seg = kSegmentThat;
+        } else if (segment == "constant") {
+            seg = kSegmentConstant;
+        } else if (segment == "static") {
+            seg = kSegmentStatic;
+        } else if (segment == "pointer") {
+            seg = kSegmentPointer;
+        } else if (segment == "temp") {
+            seg = kSegmentTemp;
+        } else {
+            return tl::unexpected(fmt::format("Invalid segment: {}", segment));
+        }
+
+        if (!isdigit(num[0])) {
+            return tl::unexpected(fmt::format("Invalid value: {}", tokens[2]));
+        }
+
+        int value = stoi(num);
+        if (value > 32767) {
+            return tl::unexpected(fmt::format("Value '{}' exceeds maximum 32767", value));
+        }
+
+        uint16_t val = value;
+        return cmd_push { seg, val };
+    }
+
+    if (token == "pop" && tokens.size() == 3) {
+        const std::string& segment = tokens[1];
+        const std::string& num = tokens[2];
+
+        segment_pointer seg;
+        if (segment == "local") {
+            seg = kSegmentLocal;
+        } else if (segment == "argument") {
+            seg = kSegmentArgument;
+        } else if (segment == "this") {
+            seg = kSegmentThis;
+        } else if (segment == "that") {
+            seg = kSegmentThat;
+        } else if (segment == "constant") {
+            seg = kSegmentConstant;
+        } else if (segment == "static") {
+            seg = kSegmentStatic;
+        } else if (segment == "pointer") {
+            seg = kSegmentPointer;
+        } else if (segment == "temp") {
+            seg = kSegmentTemp;
+        } else {
+            return tl::unexpected(fmt::format("Invalid segment: {}", segment));
+        }
+
+        if (seg == kSegmentConstant) {
+            return tl::unexpected("Constant segment cannot be used with pop command");
+        }
+
+        int value = stoi(num);
+        if (value > 32767) {
+            return tl::unexpected(fmt::format("Value '{}' exceeds maximum 32767", value));
+        }
+
+        uint16_t val = value;
+        return cmd_push { seg, val };
+    }
+
+    return tl::unexpected(fmt::format("Unknown command: {}", line));
 }
