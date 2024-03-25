@@ -69,7 +69,7 @@ struct cmd_call {
 using vm_instruction = std::variant<cmd_arithmetic, cmd_push, cmd_pop, cmd_label, cmd_goto, cmd_if, cmd_function, cmd_return, cmd_call>;
 
 tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line);
-tl::expected<void, std::string> build_asm(const std::vector<vm_instruction>& instructions, std::vector<std::string>* out_lines);
+tl::expected<void, std::string> build_asm(const std::string& filename, const std::vector<vm_instruction>& instructions, std::vector<std::string>* out_lines);
 
 std::string trim_whitespace(const std::string& str) {
     const std::string whitespace = " \t\r";
@@ -98,7 +98,7 @@ std::string remove_whitespace(const std::string& str) {
     return out;
 }
 
-VMTranslator::VMTranslator(const std::string& code) {
+VMTranslator::VMTranslator(const std::string& filename, const std::string& code) : filename(filename) {
     std::stringstream ss(code);
     std::string line;
 
@@ -142,7 +142,7 @@ tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
     std::vector<std::string> asm_lines;
     asm_lines.reserve(1024);
 
-    auto result = build_asm(instructions, &asm_lines);
+    auto result = build_asm(filename, instructions, &asm_lines);
     if (!result.has_value()) {
         return tl::unexpected(result.error());
     }
@@ -264,17 +264,71 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line)
     return tl::unexpected(fmt::format("Unknown command: {}", line));
 }
 
-tl::expected<void, std::string> build_asm(const std::vector<vm_instruction>& instructions, std::vector<std::string>* out_lines) {
+tl::expected<void, std::string> build_asm(const std::string& filename, const std::vector<vm_instruction>& instructions, std::vector<std::string>* out_lines) {
     for (const auto& instr : instructions) {
         auto res = std::visit(overloaded {
             [&] (const cmd_arithmetic&) -> tl::expected<void, std::string> {
-                return {};
+                return tl::unexpected("Not yet implemented");
             },
             [&] (const cmd_push& cmd) ->tl::expected<void, std::string> {
-                return {};
+                switch (cmd.seg)
+                {
+                case kSegmentConstant:
+                    out_lines->push_back(fmt::format("@{}", cmd.offset));
+                    out_lines->push_back("D=A");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("A=M");
+                    out_lines->push_back("M=D");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("M=M+1");
+                    return {};
+
+                case kSegmentLocal:
+                case kSegmentArgument:
+                case kSegmentThis:
+                case kSegmentThat:
+                    return {};
+
+                case kSegmentStatic:
+                    {
+                        if (cmd.offset >= 240) {
+                            return tl::unexpected(fmt::format("Invalid Static offset: {}", cmd.offset));
+                        }
+
+                        out_lines->push_back(fmt::format("push {}.{}", filename, cmd.offset));
+                        return {};
+                    }
+
+                case kSegmentTemp:
+                    {
+                        if (cmd.offset >= 8) {
+                            return tl::unexpected(fmt::format("Invalid temp offset: {}", cmd.offset));
+                        }
+
+                        int reg_val = 5 + cmd.offset;
+                        out_lines->push_back(fmt::format("push R{}", reg_val));
+                        return {};
+                    }
+
+                case kSegmentPointer:
+                    {
+                        if (cmd.offset == 0) {
+                            out_lines->push_back("push THIS");
+                            return {};
+                        }
+                        if (cmd.offset == 1) {
+                            out_lines->push_back("push THAT");
+                            return {};
+                        }
+                        return tl::unexpected(fmt::format("Invalid pointer offset: {}", cmd.offset));
+                    }
+
+                default:
+                    return tl::unexpected("Not yet implemented");
+                }
             },
             [&] (const cmd_pop& cmd) -> tl::expected<void, std::string> {
-                return {};
+                return tl::unexpected("Not yet implemented");
             },
             [] (auto&&) -> tl::expected<void, std::string> {
                 return tl::unexpected("Not yet implemented");

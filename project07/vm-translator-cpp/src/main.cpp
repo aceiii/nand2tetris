@@ -150,7 +150,7 @@ auto main(int argc, char* argv[]) -> int {
         return 1;
     }
 
-    VMTranslator translator(contents.value());
+    VMTranslator translator(filepath.stem(), contents.value());
     auto result = translator.translate();
     if (!result.has_value()) {
         spdlog::error("Translation failed: {}", result.error());
