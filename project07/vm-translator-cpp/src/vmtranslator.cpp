@@ -98,6 +98,16 @@ std::string remove_whitespace(const std::string& str) {
     return out;
 }
 
+std::string segment_name_string(const segment_pointer& seg) {
+    switch (seg) {
+        case kSegmentLocal: return "LCL";
+        case kSegmentArgument: return "ARG";
+        case kSegmentThis: return "THIS";
+        case kSegmentThat: return "THAT";
+        default: throw std::invalid_argument("Invalid segment");
+    }
+}
+
 VMTranslator::VMTranslator(const std::string& filename, const std::string& code) : filename(filename) {
     std::stringstream ss(code);
     std::string line;
@@ -265,70 +275,262 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line)
 }
 
 tl::expected<void, std::string> build_asm(const std::string& filename, const std::vector<vm_instruction>& instructions, std::vector<std::string>* out_lines) {
+    std::string segment_name;
     for (const auto& instr : instructions) {
         auto res = std::visit(overloaded {
-            [&] (const cmd_arithmetic&) -> tl::expected<void, std::string> {
-                return tl::unexpected("Not yet implemented");
-            },
-            [&] (const cmd_push& cmd) ->tl::expected<void, std::string> {
-                switch (cmd.seg)
+            [&] (const cmd_arithmetic& cmd) -> tl::expected<void, std::string> {
+                switch (cmd.op)
                 {
-                case kSegmentConstant:
-                    out_lines->push_back(fmt::format("@{}", cmd.offset));
-                    out_lines->push_back("D=A");
+                case kArithmeticOpAdd:
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("D=M");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("D=D+M");
+                    return {};
+                case kArithmeticOpSub: break;
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("M=M-1");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("D=M");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("A=M+1");
+                    out_lines->push_back("A=M");
+                    out_lines->push_back("D=D-A");
                     out_lines->push_back("@SP");
                     out_lines->push_back("A=M");
                     out_lines->push_back("M=D");
                     out_lines->push_back("@SP");
                     out_lines->push_back("M=M+1");
                     return {};
-
-                case kSegmentLocal:
-                case kSegmentArgument:
-                case kSegmentThis:
-                case kSegmentThat:
-                    return {};
-
-                case kSegmentStatic:
+                case kArithmeticOpNeg: break;
+                case kArithmeticOpEq: break;
+                case kArithmeticOpGt: break;
+                case kArithmeticOpLt: break;
+                case kArithmeticOpAnd: break;
+                case kArithmeticOpOr: break;
+                case kArithmeticOpNot: break;
+                }
+                return tl::unexpected("Not yet implemented");
+            },
+            [&] (const cmd_push& cmd) ->tl::expected<void, std::string> {
+                try {
+                    switch (cmd.seg)
                     {
-                        if (cmd.offset >= 240) {
-                            return tl::unexpected(fmt::format("Invalid Static offset: {}", cmd.offset));
-                        }
+                    case kSegmentConstant:
+                        // RAM[SP] = i
+                        out_lines->push_back(fmt::format("@{}", cmd.offset));
+                        out_lines->push_back("D=A");
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("A=M");
+                        out_lines->push_back("M=D");
 
-                        out_lines->push_back(fmt::format("push {}.{}", filename, cmd.offset));
+                        // SP++
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("M=M+1");
+
                         return {};
-                    }
 
-                case kSegmentTemp:
-                    {
-                        if (cmd.offset >= 8) {
-                            return tl::unexpected(fmt::format("Invalid temp offset: {}", cmd.offset));
-                        }
+                    case kSegmentLocal:
+                    case kSegmentArgument:
+                    case kSegmentThis:
+                    case kSegmentThat:
+                        // addr <- segmentPointer + i
+                        out_lines->push_back(fmt::format("@{}", cmd.offset));
+                        out_lines->push_back("D=A");
+                        out_lines->push_back(fmt::format("@{}", segment_name_string(cmd.seg)));
+                        out_lines->push_back("D=D+M");
 
-                        int reg_val = 5 + cmd.offset;
-                        out_lines->push_back(fmt::format("push R{}", reg_val));
+                        // RAM[SP] <- RAM[addr]
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("A=M");
+                        out_lines->push_back("M=D");
+
+                        // SP++
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("M=M+1");
+
                         return {};
-                    }
 
-                case kSegmentPointer:
-                    {
-                        if (cmd.offset == 0) {
-                            out_lines->push_back("push THIS");
+                    case kSegmentStatic:
+                        {
+                            if (cmd.offset >= 240) {
+                                return tl::unexpected(fmt::format("Invalid Static offset: {}", cmd.offset));
+                            }
+
+                            std::string reg_name = fmt::format("{}.{}", filename, cmd.offset);
+
+                            // RAM[SP] <- Foo.0
+                            out_lines->push_back(fmt::format("@{}", reg_name));
+                            out_lines->push_back("D=M");
+                            out_lines->push_back("@SP");
+                            out_lines->push_back("A=M");
+                            out_lines->push_back("M=D");
+
+                            // SP++
+                            out_lines->push_back("@SP");
+                            out_lines->push_back("M=M+1");
+
                             return {};
                         }
-                        if (cmd.offset == 1) {
-                            out_lines->push_back("push THAT");
+
+                    case kSegmentTemp:
+                        {
+                            if (cmd.offset >= 8) {
+                                return tl::unexpected(fmt::format("Invalid temp offset: {}", cmd.offset));
+                            }
+
+                            int reg_val = 5 + cmd.offset;
+                            std::string reg_name = fmt::format("R{}", reg_val);
+
+                            // RAM[SP] <- R5
+                            out_lines->push_back(fmt::format("@{}", reg_name));
+                            out_lines->push_back("D=M");
+                            out_lines->push_back("@SP");
+                            out_lines->push_back("A=M");
+                            out_lines->push_back("M=D");
+
+                            // SP++
+                            out_lines->push_back("@SP");
+                            out_lines->push_back("M=M+1");
+
                             return {};
                         }
-                        return tl::unexpected(fmt::format("Invalid pointer offset: {}", cmd.offset));
-                    }
 
-                default:
-                    return tl::unexpected("Not yet implemented");
+                    case kSegmentPointer:
+                        {
+                            std::string reg_name;
+                            if (cmd.offset == 0) {
+                                reg_name = "THIS";
+                            } else if (cmd.offset == 1) {
+                                reg_name = "THAT";
+                            } else {
+                                return tl::unexpected(fmt::format("Invalid pointer offset: {}", cmd.offset));
+                            }
+
+                            // RAM[SP] <- RAM[THIS]
+                            out_lines->push_back(fmt::format("@{}", reg_name));
+                            out_lines->push_back("A=M");
+                            out_lines->push_back("D=M");
+                            out_lines->push_back("@SP");
+                            out_lines->push_back("A=M");
+                            out_lines->push_back("M=D");
+
+                            // SP++
+                            out_lines->push_back("@SP");
+                            out_lines->push_back("M=M+1");
+
+                            return {};
+                        }
+
+                    default:
+                        return tl::unexpected("Not yet implemented");
+                    }
+                } catch (const std::exception& err) {
+                    return tl::unexpected(err.what());
                 }
             },
             [&] (const cmd_pop& cmd) -> tl::expected<void, std::string> {
-                return tl::unexpected("Not yet implemented");
+                try {
+                    switch (cmd.seg)
+                    {
+                    case kSegmentConstant:
+                        return tl::unexpected("Cannot pop constant segment");
+
+                    case kSegmentLocal:
+                    case kSegmentArgument:
+                    case kSegmentThis:
+                    case kSegmentThat:
+                        // addr <- segmentPointer + i
+                        out_lines->push_back(fmt::format("@{}", cmd.offset));
+                        out_lines->push_back("D=A");
+                        out_lines->push_back(fmt::format("@{}", segment_name_string(cmd.seg)));
+                        out_lines->push_back("D=D+M");
+                        out_lines->push_back("@R13");
+                        out_lines->push_back("M=D");
+
+                        // SP--
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("AM=M-1");
+
+                        // RAM[addr] <- RAM[SP]
+                        out_lines->push_back("D=M");
+                        out_lines->push_back("@R13");
+                        out_lines->push_back("A=M");
+                        out_lines->push_back("M=D");
+
+                        return {};
+
+                    case kSegmentStatic:
+                        {
+                            if (cmd.offset >= 240) {
+                                return tl::unexpected(fmt::format("Invalid Static offset: {}", cmd.offset));
+                            }
+
+                            std::string reg_name = fmt::format("{}.{}", filename, cmd.offset);
+
+                            // SP--
+                            out_lines->push_back("@SP");
+                            out_lines->push_back("AM=M-1");
+
+                            //Foo.0 = RAM[SP]
+                            out_lines->push_back("D=M");
+                            out_lines->push_back(fmt::format("@{}", reg_name));
+                            out_lines->push_back("M=D");
+
+                            return {};
+                        }
+
+                    case kSegmentTemp:
+                        {
+                            if (cmd.offset >= 8) {
+                                return tl::unexpected(fmt::format("Invalid temp offset: {}", cmd.offset));
+                            }
+
+                            int reg_val = 5 + cmd.offset;
+                            const std::string reg_name = fmt::format("R{}", reg_val);
+
+                            // SP--
+                            out_lines->push_back("@SP");
+                            out_lines->push_back("AM=M-1");
+
+                            // R5 = RAM[SP]
+                            out_lines->push_back("D=M");
+                            out_lines->push_back(fmt::format("@{}", reg_name));
+                            out_lines->push_back("M=D");
+
+                            return {};
+                        }
+
+                    case kSegmentPointer:
+                        {
+                            std::string reg_name;
+                            if (cmd.offset == 0) {
+                                reg_name = "THIS";
+                            } else if (cmd.offset == 1) {
+                                reg_name = "THAT";
+                            } else {
+                                return tl::unexpected(fmt::format("Invalid pointer offset: {}", cmd.offset));
+                            }
+
+                            // SP--
+                            out_lines->push_back("@SP");
+                            out_lines->push_back("AM=M-1");
+
+                            // RAM[THIS] = RAM[SP]
+                            out_lines->push_back("D=M");
+                            out_lines->push_back(fmt::format("@{}", reg_name));
+                            out_lines->push_back("A=M");
+                            out_lines->push_back("M=D");
+                        }
+
+                    default:
+                        return tl::unexpected("Not yet implemented");
+                    }
+                } catch (const std::exception& err) {
+                    return tl::unexpected(err.what());
+                }
             },
             [] (auto&&) -> tl::expected<void, std::string> {
                 return tl::unexpected("Not yet implemented");
