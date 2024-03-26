@@ -2,6 +2,7 @@
 
 #include <spdlog/spdlog.h>
 #include <sstream>
+#include <utility>
 
 template <class... Ts>
 struct overloaded : Ts... { using Ts::operator()...; };
@@ -69,7 +70,7 @@ struct cmd_call {
 using vm_instruction = std::variant<cmd_arithmetic, cmd_push, cmd_pop, cmd_label, cmd_goto, cmd_if, cmd_function, cmd_return, cmd_call>;
 
 tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line);
-tl::expected<void, std::string> build_asm(const std::string& filename, const std::vector<vm_instruction>& instructions, std::vector<std::string>* out_lines);
+tl::expected<void, std::string> build_asm(const std::string& filename, const std::vector<std::pair<vm_instruction, std::string>>& instructions, std::vector<std::string>* out_lines);
 
 std::string trim_whitespace(const std::string& str) {
     const std::string whitespace = " \t\r";
@@ -138,7 +139,7 @@ std::vector<std::string> tokenize(const std::string& line) {
 }
 
 tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
-    std::vector<vm_instruction> instructions;
+    std::vector<std::pair<vm_instruction, std::string>> instructions;
 
     for (const auto &line : lines) {
         spdlog::trace(">>> {}", line);
@@ -146,7 +147,7 @@ tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
         if (!result.has_value()) {
             return tl::unexpected(result.error());
         }
-        instructions.push_back(result.value());
+        instructions.push_back(std::make_pair(result.value(), line));
     }
 
     std::vector<std::string> asm_lines;
@@ -268,15 +269,21 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line)
 
         uint16_t val = value.value();
 
-        return cmd_push { seg, value.value() };
+        return cmd_pop { seg, value.value() };
     }
 
     return tl::unexpected(fmt::format("Unknown command: {}", line));
 }
 
-tl::expected<void, std::string> build_asm(const std::string& filename, const std::vector<vm_instruction>& instructions, std::vector<std::string>* out_lines) {
+tl::expected<void, std::string> build_asm(const std::string& filename, const std::vector<std::pair<vm_instruction, std::string>>& instructions, std::vector<std::string>* out_lines) {
     std::string segment_name;
-    for (const auto& instr : instructions) {
+    int counter = 0;
+    for (const auto& instr_pair : instructions) {
+        const vm_instruction& instr = std::get<0>(instr_pair);
+        const std::string& line = std::get<1>(instr_pair);
+
+        out_lines->push_back(fmt::format("// {}", line));
+
         auto res = std::visit(overloaded {
             [&] (const cmd_arithmetic& cmd) -> tl::expected<void, std::string> {
                 switch (cmd.op)
@@ -287,32 +294,137 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                     out_lines->push_back("D=M");
                     out_lines->push_back("@SP");
                     out_lines->push_back("AM=M-1");
-                    out_lines->push_back("D=D+M");
-                    return {};
-                case kArithmeticOpSub: break;
-                    out_lines->push_back("@SP");
-                    out_lines->push_back("M=M-1");
-                    out_lines->push_back("AM=M-1");
-                    out_lines->push_back("D=M");
-                    out_lines->push_back("@SP");
-                    out_lines->push_back("A=M+1");
-                    out_lines->push_back("A=M");
-                    out_lines->push_back("D=D-A");
-                    out_lines->push_back("@SP");
-                    out_lines->push_back("A=M");
-                    out_lines->push_back("M=D");
+                    out_lines->push_back("M=D+M");
                     out_lines->push_back("@SP");
                     out_lines->push_back("M=M+1");
                     return {};
-                case kArithmeticOpNeg: break;
-                case kArithmeticOpEq: break;
-                case kArithmeticOpGt: break;
-                case kArithmeticOpLt: break;
-                case kArithmeticOpAnd: break;
-                case kArithmeticOpOr: break;
-                case kArithmeticOpNot: break;
+                case kArithmeticOpSub:
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("D=M");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("M=M-D");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("M=M+1");
+                    return {};
+                case kArithmeticOpNeg:
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("M=-M");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("M=M+1");
+                    return {};
+                case kArithmeticOpEq:
+                    {
+                        std::string label = fmt::format("kArithmeticOpEq.{}", ++counter);
+
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("AM=M-1");
+                        out_lines->push_back("D=M");
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("AM=M-1");
+                        out_lines->push_back("D=M-D");
+                        out_lines->push_back(fmt::format("@{}", label));
+                        out_lines->push_back("D;JEQ");
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("A=M");
+                        out_lines->push_back("M=0");
+                        out_lines->push_back(fmt::format("@{}.end", label));
+                        out_lines->push_back("0;JMP");
+                        out_lines->push_back(fmt::format("({})", label));
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("A=M");
+                        out_lines->push_back("M=-1");
+                        out_lines->push_back(fmt::format("({}.end)", label));
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("M=M+1");
+
+                        return {};
+                    }
+                case kArithmeticOpGt:
+                    {
+                        std::string label = fmt::format("kArithmeticOpGt.{}", ++counter);
+
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("AM=M-1");
+                        out_lines->push_back("D=M");
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("AM=M-1");
+                        out_lines->push_back("D=M-D");
+                        out_lines->push_back(fmt::format("@{}", label));
+                        out_lines->push_back("D;JGT");
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("A=M");
+                        out_lines->push_back("M=0");
+                        out_lines->push_back(fmt::format("@{}.end", label));
+                        out_lines->push_back("0;JMP");
+                        out_lines->push_back(fmt::format("({})", label));
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("A=M");
+                        out_lines->push_back("M=-1");
+                        out_lines->push_back(fmt::format("({}.end)", label));
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("M=M+1");
+
+                        return {};
+                    }
+                case kArithmeticOpLt:
+                    {
+                        std::string label = fmt::format("kArithmeticOpGt.{}", ++counter);
+
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("AM=M-1");
+                        out_lines->push_back("D=M");
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("AM=M-1");
+                        out_lines->push_back("D=M-D");
+                        out_lines->push_back(fmt::format("@{}", label));
+                        out_lines->push_back("D;JLT");
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("A=M");
+                        out_lines->push_back("M=0");
+                        out_lines->push_back(fmt::format("@{}.end", label));
+                        out_lines->push_back("0;JMP");
+                        out_lines->push_back(fmt::format("({})", label));
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("A=M");
+                        out_lines->push_back("M=-1");
+                        out_lines->push_back(fmt::format("({}.end)", label));
+                        out_lines->push_back("@SP");
+                        out_lines->push_back("M=M+1");
+
+                        return {};
+                    }
+                case kArithmeticOpAnd:
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("D=M");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("M=D&M");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("M=M+1");
+                    return {};
+                case kArithmeticOpOr:
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("D=M");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("M=D|M");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("M=M+1");
+                    return {};
+                case kArithmeticOpNot:
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("AM=M-1");
+                    out_lines->push_back("M=!M");
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("M=M+1");
+                    return {};
                 }
-                return tl::unexpected("Not yet implemented");
+                return tl::unexpected(fmt::format("Not Implemented: {}", line));
             },
             [&] (const cmd_push& cmd) ->tl::expected<void, std::string> {
                 try {
@@ -337,10 +449,11 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                     case kSegmentThis:
                     case kSegmentThat:
                         // addr <- segmentPointer + i
-                        out_lines->push_back(fmt::format("@{}", cmd.offset));
-                        out_lines->push_back("D=A");
                         out_lines->push_back(fmt::format("@{}", segment_name_string(cmd.seg)));
-                        out_lines->push_back("D=D+M");
+                        out_lines->push_back("D=M");
+                        out_lines->push_back(fmt::format("@{}", cmd.offset));
+                        out_lines->push_back("A=D+A");
+                        out_lines->push_back("D=M");
 
                         // RAM[SP] <- RAM[addr]
                         out_lines->push_back("@SP");
@@ -409,9 +522,8 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                                 return tl::unexpected(fmt::format("Invalid pointer offset: {}", cmd.offset));
                             }
 
-                            // RAM[SP] <- RAM[THIS]
+                            // RAM[SP] <- THIS
                             out_lines->push_back(fmt::format("@{}", reg_name));
-                            out_lines->push_back("A=M");
                             out_lines->push_back("D=M");
                             out_lines->push_back("@SP");
                             out_lines->push_back("A=M");
@@ -425,7 +537,7 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                         }
 
                     default:
-                        return tl::unexpected("Not yet implemented");
+                        return tl::unexpected(fmt::format("Not Implemented: {}", line));
                     }
                 } catch (const std::exception& err) {
                     return tl::unexpected(err.what());
@@ -443,10 +555,10 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                     case kSegmentThis:
                     case kSegmentThat:
                         // addr <- segmentPointer + i
-                        out_lines->push_back(fmt::format("@{}", cmd.offset));
-                        out_lines->push_back("D=A");
                         out_lines->push_back(fmt::format("@{}", segment_name_string(cmd.seg)));
-                        out_lines->push_back("D=D+M");
+                        out_lines->push_back("D=M");
+                        out_lines->push_back(fmt::format("@{}", cmd.offset));
+                        out_lines->push_back("D=D+A");
                         out_lines->push_back("@R13");
                         out_lines->push_back("M=D");
 
@@ -518,28 +630,31 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                             out_lines->push_back("@SP");
                             out_lines->push_back("AM=M-1");
 
-                            // RAM[THIS] = RAM[SP]
+                            // THIS = RAM[SP]
                             out_lines->push_back("D=M");
                             out_lines->push_back(fmt::format("@{}", reg_name));
-                            out_lines->push_back("A=M");
                             out_lines->push_back("M=D");
+
+                            return {};
                         }
 
                     default:
-                        return tl::unexpected("Not yet implemented");
+                        return tl::unexpected(fmt::format("Not Implemented: {}", line));
                     }
                 } catch (const std::exception& err) {
                     return tl::unexpected(err.what());
                 }
             },
-            [] (auto&&) -> tl::expected<void, std::string> {
-                return tl::unexpected("Not yet implemented");
+            [&] (auto&&) -> tl::expected<void, std::string> {
+                return tl::unexpected(fmt::format("Not Implemented: {}", line));
             },
         }, instr);
 
         if (!res.has_value()) {
             return tl::unexpected(res.error());
         }
+
+        out_lines->push_back("");
     }
     return {};
 }
