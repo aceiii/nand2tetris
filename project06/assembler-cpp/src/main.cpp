@@ -140,7 +140,7 @@ int main(int argc, char* argv[]) {
 
     if (output.empty() && !read_from_stdin) {
         output = replace_ext(filepath.filename(), "hack");
-    } else {
+    } else if(output.empty()) {
         output = "out.hack";
     }
 

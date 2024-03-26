@@ -129,7 +129,7 @@ auto main(int argc, char* argv[]) -> int {
 
     if (output.empty() && !filepath.filename().empty() && !read_from_stdin) {
         output = replace_ext(filepath.filename(), "asm");
-    } else {
+    } else if(output.empty()) {
         output = "out.asm";
     }
 
