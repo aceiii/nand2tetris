@@ -61,7 +61,7 @@ struct cmd_if {
 
 struct cmd_function {
     std::string name;
-    uint16_t count;
+    uint8_t count;
 };
 
 struct cmd_return {
@@ -69,7 +69,7 @@ struct cmd_return {
 
 struct cmd_call {
     std::string name;
-    uint16_t count;
+    uint8_t count;
 };
 
 using vm_instruction = std::variant<cmd_arithmetic, cmd_push, cmd_pop, cmd_label, cmd_goto, cmd_if, cmd_function, cmd_return, cmd_call>;
@@ -203,7 +203,7 @@ tl::expected<uint16_t, std::string> parse_uint16_value(const std::string& num) {
     return val;
 }
 
-tl::expected<uint16_t, std::string> parse_uint8_value(const std::string& num) {
+tl::expected<uint8_t, std::string> parse_uint8_value(const std::string& num) {
     int value = stoi(num);
     if (value > 127 || value < -128) {
         return tl::unexpected(fmt::format("Value '{}' not in range [-128, 127]", value));
@@ -299,7 +299,7 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& filen
     }
 
     if (cmd == "function" && tokens.size() == 3) {
-        const auto value = parse_uint16_value(tokens[2]);
+        const auto value = parse_uint8_value(tokens[2]);
         if (!value.has_value()) {
             return tl::unexpected(value.error());
         }
@@ -308,7 +308,7 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& filen
     }
 
     if (cmd == "call" && tokens.size() == 3) {
-        const auto value = parse_uint16_value(tokens[2]);
+        const auto value = parse_uint8_value(tokens[2]);
         if (!value.has_value()) {
             return tl::unexpected(value.error());
         }
