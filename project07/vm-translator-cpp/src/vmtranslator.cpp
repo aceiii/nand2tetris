@@ -74,7 +74,7 @@ struct cmd_call {
 
 using vm_instruction = std::variant<cmd_arithmetic, cmd_push, cmd_pop, cmd_label, cmd_goto, cmd_if, cmd_function, cmd_return, cmd_call>;
 
-tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line);
+tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& filename, const std::string& line);
 tl::expected<void, std::string> build_asm(const std::string& filename, const std::vector<std::pair<vm_instruction, std::string>>& instructions, std::vector<std::string>* out_lines);
 
 std::string trim_whitespace(const std::string& str) {
@@ -148,7 +148,7 @@ tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
 
     for (const auto &line : lines) {
         spdlog::trace(">>> {}", line);
-        auto result = parse_vm_line(line);
+        auto result = parse_vm_line(filename, line);
         if (!result.has_value()) {
             return tl::unexpected(result.error());
         }
@@ -196,14 +196,23 @@ tl::expected<segment_pointer, std::string> parse_segment_pointer(const std::stri
 
 tl::expected<uint16_t, std::string> parse_uint16_value(const std::string& num) {
     int value = stoi(num);
-    if (value > 32767) {
-        return tl::unexpected(fmt::format("Value '{}' exceeds maximum 32767", value));
+    if (value > 32767 || value < -32768) {
+        return tl::unexpected(fmt::format("Value '{}' not in range [-32768, 32767]", value));
     }
     uint16_t val = value;
     return val;
 }
 
-tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line) {
+tl::expected<uint16_t, std::string> parse_uint8_value(const std::string& num) {
+    int value = stoi(num);
+    if (value > 127 || value < -128) {
+        return tl::unexpected(fmt::format("Value '{}' not in range [-128, 127]", value));
+    }
+    uint8_t val = value;
+    return val;
+}
+
+tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& filename, const std::string& line) {
     std::vector<std::string> tokens = tokenize(line);
 
     if (tokens.empty()) {
@@ -295,7 +304,7 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line)
             return tl::unexpected(value.error());
         }
 
-        return cmd_function { tokens[1], value.value() };
+        return cmd_function { fmt::format("{}.{}", filename, tokens[1]), value.value() };
     }
 
     if (cmd == "call" && tokens.size() == 3) {
@@ -683,6 +692,38 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                 } catch (const std::exception& err) {
                     return tl::unexpected(err.what());
                 }
+            },
+            [&] (const cmd_label& cmd) -> tl::expected<void, std::string> {
+                out_lines->push_back(fmt::format("({})", cmd.label));
+                return {};
+            },
+            [&] (const cmd_goto& cmd) -> tl::expected<void, std::string> {
+                out_lines->push_back(fmt::format("@{}", cmd.label));
+                out_lines->push_back("0;JMP");
+                return {};
+            },
+            [&] (const cmd_if& cmd) -> tl::expected<void, std::string> {
+                // SP--
+                out_lines->push_back("@SP");
+                out_lines->push_back("AM=M-1");
+
+                // pop D
+                out_lines->push_back("D=M");
+
+                // jump if D != 0
+                out_lines->push_back(fmt::format("@{}", cmd.label));
+                out_lines->push_back("D;JNE");
+
+                return {};
+            },
+            [&] (const cmd_function& cmd) -> tl::expected<void, std::string> {
+                return tl::unexpected("Not yet implemented: cmd_function");
+            },
+            [&] (const cmd_return& cmd) -> tl::expected<void, std::string> {
+                return tl::unexpected("Not yet implemented: cmd_return");
+            },
+            [&] (const cmd_call& cmd) -> tl::expected<void, std::string> {
+                return tl::unexpected("Not yet implemented: cmd_call");
             },
             [&] (auto&&) -> tl::expected<void, std::string> {
                 return tl::unexpected(fmt::format("Not Implemented: {}", line));
