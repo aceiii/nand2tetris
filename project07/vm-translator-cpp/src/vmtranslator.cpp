@@ -56,15 +56,20 @@ struct cmd_goto {
 };
 
 struct cmd_if {
+    std::string label;
 };
 
 struct cmd_function {
+    std::string name;
+    uint16_t count;
 };
 
 struct cmd_return {
 };
 
 struct cmd_call {
+    std::string name;
+    uint16_t count;
 };
 
 using vm_instruction = std::variant<cmd_arithmetic, cmd_push, cmd_pop, cmd_label, cmd_goto, cmd_if, cmd_function, cmd_return, cmd_call>;
@@ -270,6 +275,40 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& line)
         uint16_t val = value.value();
 
         return cmd_pop { seg, value.value() };
+    }
+
+    if (cmd == "label" && tokens.size() == 2) {
+        return cmd_label { tokens[1] };
+    }
+
+    if (cmd == "goto" && tokens.size() == 2) {
+        return cmd_goto { tokens[1] };
+    }
+
+    if (cmd == "if-goto" && tokens.size() == 2) {
+        return cmd_if { tokens[1] };
+    }
+
+    if (cmd == "function" && tokens.size() == 3) {
+        const auto value = parse_uint16_value(tokens[2]);
+        if (!value.has_value()) {
+            return tl::unexpected(value.error());
+        }
+
+        return cmd_function { tokens[1], value.value() };
+    }
+
+    if (cmd == "call" && tokens.size() == 3) {
+        const auto value = parse_uint16_value(tokens[2]);
+        if (!value.has_value()) {
+            return tl::unexpected(value.error());
+        }
+
+        return cmd_call { tokens[1], value.value() };
+    }
+
+    if (cmd == "return" && tokens.size() == 1) {
+        return cmd_return {};
     }
 
     return tl::unexpected(fmt::format("Unknown command: {}", line));
