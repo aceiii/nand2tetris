@@ -6,6 +6,7 @@
 #include <filesystem>
 
 #include "vmtranslator.h"
+#include "bootstrap.h"
 
 tl::expected<std::string, std::string> get_file_contents(const std::istream& in) {
     if (!in) {
