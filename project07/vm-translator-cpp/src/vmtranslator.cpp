@@ -717,10 +717,91 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                 return {};
             },
             [&] (const cmd_function& cmd) -> tl::expected<void, std::string> {
-                return tl::unexpected("Not yet implemented: cmd_function");
+
+                // function label
+                out_lines->push_back(fmt::format("({})", cmd.name));
+
+                // initialize local vars
+                for (int i = 0; i < cmd.count; i += 1) {
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("A=M");
+                    out_lines->push_back("M=0");
+
+                    // SP++
+                    out_lines->push_back("@SP");
+                    out_lines->push_back("M=M+1");
+                }
+
+                return {};
             },
             [&] (const cmd_return& cmd) -> tl::expected<void, std::string> {
-                return tl::unexpected("Not yet implemented: cmd_return");
+                // endFrame (R13) = LCL
+                out_lines->push_back("@LCL");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@R13");
+                out_lines->push_back("M=D");
+
+                // retAddr (R14) = RAM[endFrame - 5]
+                out_lines->push_back("@5");
+                out_lines->push_back("A=D-A");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@R14");
+                out_lines->push_back("M=D");
+
+                // RAM[ARG] <- RAM[SP-1]
+                out_lines->push_back("@SP");
+                out_lines->push_back("A=M-1");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@ARG");
+                out_lines->push_back("A=M");
+                out_lines->push_back("M=D");
+
+                // SP = ARG + 1
+                out_lines->push_back("@ARG");
+                out_lines->push_back("D=M+1");
+                out_lines->push_back("@SP");
+                out_lines->push_back("M=D");
+
+                // THAT = RAM[endFrame - 1]
+                out_lines->push_back("@R13");
+                out_lines->push_back("A=M-1");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@THAT");
+                out_lines->push_back("M=D");
+
+                // THIS = RAM[endFrame - 2]
+                out_lines->push_back("@2");
+                out_lines->push_back("D=A");
+                out_lines->push_back("@R13");
+                out_lines->push_back("A=M-D");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@THIS");
+                out_lines->push_back("M=D");
+
+                // ARG = RAM[endFrame - 3]
+                out_lines->push_back("@3");
+                out_lines->push_back("D=A");
+                out_lines->push_back("@R13");
+                out_lines->push_back("A=M-D");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@ARG");
+                out_lines->push_back("M=D");
+
+                // LCL = RAM[endFrame - 4]
+                out_lines->push_back("@4");
+                out_lines->push_back("D=A");
+                out_lines->push_back("@R13");
+                out_lines->push_back("A=M-D");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@LCL");
+                out_lines->push_back("M=D");
+
+                // jump to retAddr (R14)
+                out_lines->push_back("@R14");
+                out_lines->push_back("A=M");
+                out_lines->push_back("0;JMP");
+
+                return {};
             },
             [&] (const cmd_call& cmd) -> tl::expected<void, std::string> {
                 std::string return_label = fmt::format("{}$ret.{}", cmd.name, counter++);
