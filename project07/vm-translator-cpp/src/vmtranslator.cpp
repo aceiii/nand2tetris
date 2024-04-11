@@ -304,7 +304,7 @@ tl::expected<vm_instruction, std::string> parse_vm_line(const std::string& filen
             return tl::unexpected(value.error());
         }
 
-        return cmd_function { fmt::format("{}.{}", filename, tokens[1]), value.value() };
+        return cmd_function { tokens[1], value.value() };
     }
 
     if (cmd == "call" && tokens.size() == 3) {
@@ -723,7 +723,90 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                 return tl::unexpected("Not yet implemented: cmd_return");
             },
             [&] (const cmd_call& cmd) -> tl::expected<void, std::string> {
-                return tl::unexpected("Not yet implemented: cmd_call");
+                std::string return_label = fmt::format("{}$ret.{}", cmd.name, counter++);
+
+                // RAM[SP+0] <- return address
+                out_lines->push_back(fmt::format("@{}", return_label));
+                out_lines->push_back("D=M");
+                out_lines->push_back("@SP");
+                out_lines->push_back("A=M");
+                out_lines->push_back("M=D");
+                // SP++
+                out_lines->push_back("@SP");
+                out_lines->push_back("M=M+1");
+
+                // RAM[SP+1] <- LCL
+                out_lines->push_back("@LCL");
+                out_lines->push_back("A=M");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@SP");
+                out_lines->push_back("A=M");
+                out_lines->push_back("M=D");
+                // SP++
+                out_lines->push_back("@SP");
+                out_lines->push_back("M=M+1");
+
+                // RAM[SP+1] <- ARG
+                out_lines->push_back("@ARG");
+                out_lines->push_back("A=M");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@SP");
+                out_lines->push_back("A=M");
+                out_lines->push_back("M=D");
+                // SP++
+                out_lines->push_back("@SP");
+                out_lines->push_back("M=M+1");
+
+                // RAM[SP+1] <- THIS
+                out_lines->push_back("@THIS");
+                out_lines->push_back("A=M");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@SP");
+                out_lines->push_back("A=M");
+                out_lines->push_back("M=D");
+                // SP++
+                out_lines->push_back("@SP");
+                out_lines->push_back("M=M+1");
+
+                // RAM[SP+1] <- THAT
+                out_lines->push_back("@THAT");
+                out_lines->push_back("A=M");
+                out_lines->push_back("D=M");
+                out_lines->push_back("@SP");
+                out_lines->push_back("A=M");
+                out_lines->push_back("M=D");
+                // SP++
+                out_lines->push_back("@SP");
+                out_lines->push_back("M=M+1");
+
+                // RAM[ARG] = RAM[SP] - 5 - nArgs
+                out_lines->push_back("@5");
+                out_lines->push_back("D=A");
+                out_lines->push_back(fmt::format("@{}", cmd.count));
+                out_lines->push_back("D=D+A");
+                out_lines->push_back("@SP");
+                out_lines->push_back("A=M");
+                out_lines->push_back("D=M-D");
+                out_lines->push_back("@ARG");
+                out_lines->push_back("A=M");
+                out_lines->push_back("M=D");
+
+                // RAM[LCL] = RAM[SP]
+                out_lines->push_back("@SP");
+                out_lines->push_back("A=M");
+                out_lines->push_back("D=A");
+                out_lines->push_back("@LCL");
+                out_lines->push_back("A=M");
+                out_lines->push_back("M=D");
+
+                // jump to function
+                out_lines->push_back(fmt::format("@{}", cmd.name));
+                out_lines->push_back("0;JMP");
+
+                // (return_label)
+                out_lines->push_back(fmt::format("({})", return_label));
+
+                return {};
             },
             [&] (auto&&) -> tl::expected<void, std::string> {
                 return tl::unexpected(fmt::format("Not Implemented: {}", line));
