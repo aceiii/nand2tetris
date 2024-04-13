@@ -114,7 +114,14 @@ std::string segment_name_string(const segment_pointer& seg) {
     }
 }
 
-VMTranslator::VMTranslator(const std::string& filename, const std::string& code) : filename(filename) {
+tl::expected<void, std::string> VMTranslator::add_boot_assembly(const std::vector<std::string>& lines) {
+    // TODO: copy boot assembly to output
+    return {};
+}
+
+tl::expected<void, std::string> VMTranslator::add_file(const std::string& filename, const std::string& code) {
+    std::vector<std::string> lines;
+
     std::stringstream ss(code);
     std::string line;
 
@@ -123,8 +130,12 @@ VMTranslator::VMTranslator(const std::string& filename, const std::string& code)
         if (line.empty()) {
             continue;
         }
-        lines.push_back(line);
+        lines.emplace_back(line);
     }
+
+    files.emplace_back(std::make_pair(filename, std::move(lines)));
+
+    return {};
 }
 
 std::vector<std::string> tokenize(const std::string& line) {
@@ -144,23 +155,25 @@ std::vector<std::string> tokenize(const std::string& line) {
 }
 
 tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
-    std::vector<std::pair<vm_instruction, std::string>> instructions;
-
-    for (const auto &line : lines) {
-        spdlog::trace(">>> {}", line);
-        auto result = parse_vm_line(filename, line);
-        if (!result.has_value()) {
-            return tl::unexpected(result.error());
-        }
-        instructions.push_back(std::make_pair(result.value(), line));
-    }
-
     std::vector<std::string> asm_lines;
     asm_lines.reserve(1024);
 
-    auto result = build_asm(filename, instructions, &asm_lines);
-    if (!result.has_value()) {
-        return tl::unexpected(result.error());
+    for (const auto &[filename, lines] : files) {
+        std::vector<std::pair<vm_instruction, std::string>> instructions;
+
+        for (const auto &line : lines) {
+            spdlog::trace(">>> {}", line);
+            auto result = parse_vm_line(filename, line);
+            if (!result.has_value()) {
+                return tl::unexpected(result.error());
+            }
+            instructions.push_back(std::make_pair(result.value(), line));
+        }
+
+        auto result = build_asm(filename, instructions, &asm_lines);
+        if (!result.has_value()) {
+            return tl::unexpected(result.error());
+        }
     }
 
     return asm_lines;
