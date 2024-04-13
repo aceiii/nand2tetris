@@ -114,7 +114,7 @@ std::string segment_name_string(const segment_pointer& seg) {
     }
 }
 
-tl::expected<void, std::string> VMTranslator::add_boot_assembly(const std::vector<std::string>& lines) {
+tl::expected<void, std::string> VMTranslator::add_boot_assembly(const std::string& code) {
     // TODO: copy boot assembly to output
     return {};
 }
@@ -157,6 +157,10 @@ std::vector<std::string> tokenize(const std::string& line) {
 tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
     std::vector<std::string> asm_lines;
     asm_lines.reserve(1024);
+
+    if (files.empty()) {
+        return tl::unexpected("No files to translate");
+    }
 
     for (const auto &[filename, lines] : files) {
         std::vector<std::pair<vm_instruction, std::string>> instructions;

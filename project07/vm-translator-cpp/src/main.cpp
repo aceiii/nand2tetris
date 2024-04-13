@@ -123,9 +123,9 @@ auto main(int argc, char* argv[]) -> int {
         return args_error("Must read from ONE of FILENAME or --stdin");
     }
 
-    if (!read_from_stdin && std::filesystem::is_directory(filepath)) {
-        spdlog::error("{} is a directory", filepath.string());
-        return 1;
+    bool is_directory = !read_from_stdin && std::filesystem::is_directory(filepath);
+    if (is_directory) {
+        spdlog::info("Translating entire directory: {}", filepath.string());
     }
 
     if (output.empty() && !filepath.filename().empty() && !read_from_stdin) {
@@ -153,10 +153,19 @@ auto main(int argc, char* argv[]) -> int {
 
     VMTranslator translator;
 
-    auto add_result = translator.add_file(filepath.stem(), contents.value());
-    if (!add_result.has_value()) {
-        spdlog::error("Add file failed: {}", add_result.error());
-        return 1;
+    if (is_directory) {
+        spdlog::debug("Adding boot assembly");
+        translator.add_boot_assembly(kDefaultBootstrapCode);
+    }
+
+    if (is_directory) {
+
+    } else {
+        auto add_result = translator.add_file(filepath.stem(), contents.value());
+        if (!add_result.has_value()) {
+            spdlog::error("Add file failed: {}", add_result.error());
+            return 1;
+        }
     }
 
     auto result = translator.translate();

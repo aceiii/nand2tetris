@@ -7,7 +7,7 @@
 
 class VMTranslator {
 public:
-    tl::expected<void, std::string> add_boot_assembly(const std::vector<std::string>& lines);
+    tl::expected<void, std::string> add_boot_assembly(const std::string& code);
     tl::expected<void, std::string> add_file(const std::string& filename, const std::string& code);
     tl::expected<std::vector<std::string>, std::string> translate();
 
