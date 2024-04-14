@@ -138,7 +138,10 @@ auto main(int argc, char* argv[]) -> int {
 
     if (is_directory) {
         spdlog::debug("Adding boot assembly");
-        translator.add_code(kDefaultBootstrapCode);
+        if (const auto result = translator.add_boot_code(kDefaultBootstrapCode); !result.has_value()) {
+            spdlog::error("Failed to add boot code: {}", result.error());
+            return 1;
+        }
     }
 
     if (is_directory) {

@@ -1,5 +1,7 @@
 #include "vmtranslator.h"
 
+#include <algorithm>
+#include <iterator>
 #include <spdlog/spdlog.h>
 #include <sstream>
 #include <utility>
@@ -114,8 +116,14 @@ std::string segment_name_string(const segment_pointer& seg) {
     }
 }
 
-tl::expected<void, std::string> VMTranslator::add_code(const std::string& code) {
-    // TODO: copy boot assembly to output
+tl::expected<void, std::string> VMTranslator::add_boot_code(const std::string& code) {
+    std::stringstream ss(code);
+    std::string line;
+
+    while(std::getline(ss, line)) {
+        bootcode.emplace_back(trim_whitespace(line));
+    }
+
     return {};
 }
 
@@ -159,6 +167,8 @@ std::vector<std::string> tokenize(const std::string& line) {
 tl::expected<std::vector<std::string>, std::string> VMTranslator::translate() {
     std::vector<std::string> asm_lines;
     asm_lines.reserve(1024);
+
+    std::copy(bootcode.begin(), bootcode.end(), std::back_inserter(asm_lines));
 
     if (files.empty()) {
         return tl::unexpected("No files to translate");

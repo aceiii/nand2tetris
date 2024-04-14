@@ -1,65 +1,67 @@
 #pragma once
 
 const char* const kDefaultBootstrapCode =
-    "@256\n" // SP = 256
+    "// --- BOOTSTRAP ---- \n"
+    "// SP = 256\n"
+    "@256\n"
     "D=A\n"
     "@SP\n"
     "M=D\n"
 
-    // RAM[SP+0] <- return address
+    "// RAM[SP+0] <- return address\n"
     "D=0\n"
     "@SP\n"
     "A=M\n"
     "M=D\n"
-    // SP++
+    "// SP++"
     "@SP\n"
     "M=M+1\n"
 
-    // RAM[SP+1] <- LCL
+    "// RAM[SP+1] <- LCL\n"
     "@LCL\n"
     "A=M\n"
     "D=M\n"
     "@SP\n"
     "A=M\n"
     "M=D\n"
-    // SP++
+    "// SP++"
     "@SP\n"
     "M=M+1\n"
 
-    // RAM[SP+1] <- ARG
+    "// RAM[SP+1] <- ARG"
     "@ARG\n"
     "A=M\n"
     "D=M\n"
     "@SP\n"
     "A=M\n"
     "M=D\n"
-    // SP++
+    "// SP++\n"
     "@SP\n"
     "M=M+1\n"
 
-    // RAM[SP+1] <- THIS
+    "// RAM[SP+1] <- THIS\n"
     "@THIS\n"
     "A=M\n"
     "D=M\n"
     "@SP\n"
     "A=M\n"
     "M=D\n"
-    // SP++
+    "// SP++\n"
     "@SP\n"
     "M=M+1\n"
 
-    // RAM[SP+1] <- THAT
+    "// RAM[SP+1] <- THAT\n"
     "@THAT\n"
     "A=M\n"
     "D=M\n"
     "@SP\n"
     "A=M\n"
     "M=D\n"
-    // SP++
+    "// SP++"
     "@SP\n"
     "M=M+1\n"
 
-    // RAM[ARG] = RAM[SP] - 5 - nArgs
+    "// RAM[ARG] = RAM[SP] - 5 - nArgs\n"
     "@5\n"
     "D=A\n"
     "@SP\n"
@@ -69,7 +71,7 @@ const char* const kDefaultBootstrapCode =
     "A=M\n"
     "M=D\n"
 
-    // RAM[LCL] = RAM[SP]
+    "// RAM[LCL] = RAM[SP]\n"
     "@SP\n"
     "A=M\n"
     "D=A\n"
@@ -77,5 +79,7 @@ const char* const kDefaultBootstrapCode =
     "A=M\n"
     "M=D\n"
 
-    "@Sys.init\n" // call Sys.init
-    "0;JMP\n";
+    "// call Sys.init\n"
+    "@Sys.init\n"
+    "0;JMP\n"
+    "// --- END BOOTSTRAP ---- \n\n\n";
