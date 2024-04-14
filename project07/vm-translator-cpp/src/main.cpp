@@ -134,35 +134,57 @@ auto main(int argc, char* argv[]) -> int {
         output = "out.asm";
     }
 
-    const auto contents = ([&] () {
-        if (read_from_stdin) {
-            spdlog::info("Reading from STDIN");
-            return get_file_contents(std::cin);
-        }
-
-        const std::string filename = filepath;
-        spdlog::info("Reading file: {}", filename);
-        std::ifstream file(filename, std::ios::in);
-        return get_file_contents(file);
-    })();
-
-    if (!contents.has_value()) {
-        spdlog::error("Failed to load file: {}", contents.error());
-        return 1;
-    }
-
     VMTranslator translator;
 
     if (is_directory) {
         spdlog::debug("Adding boot assembly");
-        translator.add_boot_assembly(kDefaultBootstrapCode);
+        translator.add_code(kDefaultBootstrapCode);
     }
 
     if (is_directory) {
+        for (auto const& dir_entry : std::filesystem::directory_iterator {filepath}) {
+            if (!dir_entry.is_regular_file()) {
+                continue;
+            }
 
+            if (dir_entry.path().extension() != ".vm") {
+                continue;
+            }
+
+            const std::string filename = dir_entry.path();
+            spdlog::info("Reading file: {}", filename);
+            std::ifstream file(filename, std::ios::in);
+            const auto contents = get_file_contents(file);
+
+            if (!contents.has_value()) {
+                spdlog::error("Failed to load file: {}", contents.error());
+                return 1;
+            }
+
+            if (auto add_result = translator.add_file(dir_entry.path(), contents.value()); !add_result.has_value()) {
+                spdlog::error("Add file failed: {}", add_result.error());
+                return 1;
+            }
+        }
     } else {
-        auto add_result = translator.add_file(filepath.stem(), contents.value());
-        if (!add_result.has_value()) {
+        const auto contents = ([&] () {
+            if (read_from_stdin) {
+                spdlog::info("Reading from STDIN");
+                return get_file_contents(std::cin);
+            }
+
+            const std::string filename = filepath;
+            spdlog::info("Reading file: {}", filename);
+            std::ifstream file(filename, std::ios::in);
+            return get_file_contents(file);
+        })();
+
+        if (!contents.has_value()) {
+            spdlog::error("Failed to load file: {}", contents.error());
+            return 1;
+        }
+
+        if (auto add_result = translator.add_file(filepath.stem(), contents.value()); !add_result.has_value()) {
             spdlog::error("Add file failed: {}", add_result.error());
             return 1;
         }

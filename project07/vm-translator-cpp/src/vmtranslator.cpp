@@ -114,12 +114,14 @@ std::string segment_name_string(const segment_pointer& seg) {
     }
 }
 
-tl::expected<void, std::string> VMTranslator::add_boot_assembly(const std::string& code) {
+tl::expected<void, std::string> VMTranslator::add_code(const std::string& code) {
     // TODO: copy boot assembly to output
     return {};
 }
 
 tl::expected<void, std::string> VMTranslator::add_file(const std::string& filename, const std::string& code) {
+    spdlog::debug("Adding code for file: {}", filename);
+
     std::vector<std::string> lines;
 
     std::stringstream ss(code);
