@@ -164,7 +164,7 @@ auto main(int argc, char* argv[]) -> int {
                 return 1;
             }
 
-            if (auto add_result = translator.add_file(dir_entry.path(), contents.value()); !add_result.has_value()) {
+            if (auto add_result = translator.add_file(dir_entry.path().stem(), contents.value()); !add_result.has_value()) {
                 spdlog::error("Add file failed: {}", add_result.error());
                 return 1;
             }
