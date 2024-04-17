@@ -837,7 +837,7 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
 
                 // RAM[SP+0] <- return address
                 out_lines->push_back(fmt::format("@{}", return_label));
-                out_lines->push_back("D=M");
+                out_lines->push_back("D=A");
                 out_lines->push_back("@SP");
                 out_lines->push_back("A=M");
                 out_lines->push_back("M=D");
@@ -847,7 +847,6 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
 
                 // RAM[SP+1] <- LCL
                 out_lines->push_back("@LCL");
-                out_lines->push_back("A=M");
                 out_lines->push_back("D=M");
                 out_lines->push_back("@SP");
                 out_lines->push_back("A=M");
@@ -858,7 +857,6 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
 
                 // RAM[SP+1] <- ARG
                 out_lines->push_back("@ARG");
-                out_lines->push_back("A=M");
                 out_lines->push_back("D=M");
                 out_lines->push_back("@SP");
                 out_lines->push_back("A=M");
@@ -869,7 +867,6 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
 
                 // RAM[SP+1] <- THIS
                 out_lines->push_back("@THIS");
-                out_lines->push_back("A=M");
                 out_lines->push_back("D=M");
                 out_lines->push_back("@SP");
                 out_lines->push_back("A=M");
@@ -880,7 +877,6 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
 
                 // RAM[SP+1] <- THAT
                 out_lines->push_back("@THAT");
-                out_lines->push_back("A=M");
                 out_lines->push_back("D=M");
                 out_lines->push_back("@SP");
                 out_lines->push_back("A=M");
@@ -889,24 +885,20 @@ tl::expected<void, std::string> build_asm(const std::string& filename, const std
                 out_lines->push_back("@SP");
                 out_lines->push_back("M=M+1");
 
-                // RAM[ARG] = RAM[SP] - 5 - nArgs
+                // ARG = SP - 5 - nArgs
                 out_lines->push_back("@5");
                 out_lines->push_back("D=A");
                 out_lines->push_back(fmt::format("@{}", cmd.count));
                 out_lines->push_back("D=D+A");
                 out_lines->push_back("@SP");
-                out_lines->push_back("A=M");
                 out_lines->push_back("D=M-D");
                 out_lines->push_back("@ARG");
-                out_lines->push_back("A=M");
                 out_lines->push_back("M=D");
 
-                // RAM[LCL] = RAM[SP]
+                // LCL = SP
                 out_lines->push_back("@SP");
-                out_lines->push_back("A=M");
-                out_lines->push_back("D=A");
+                out_lines->push_back("D=M");
                 out_lines->push_back("@LCL");
-                out_lines->push_back("A=M");
                 out_lines->push_back("M=D");
 
                 // jump to function
